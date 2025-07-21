@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Filter by Customer and Machine</title>
+  <meta charset="UTF-8" />
+  <title>Customer & Machine Filter</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -11,83 +11,87 @@
     }
 
     .filter-section {
-      display: flex;
-      flex-direction: column;
       max-width: 500px;
       margin: auto;
       background: #fff;
-      padding: 1rem;
+      padding: 1.5rem;
       border-radius: 8px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
     }
 
     label {
-      margin-top: 10px;
       font-weight: bold;
+      margin-top: 1rem;
+      display: block;
     }
 
     input, select, button {
-      margin-top: 5px;
-      padding: 8px;
+      width: 100%;
+      margin-top: 0.3rem;
+      padding: 0.6rem;
       font-size: 1rem;
+      border-radius: 4px;
+      border: 1px solid #ccc;
     }
 
     button {
-      cursor: pointer;
       background-color: orange;
-      color: black;
+      color: white;
       border: none;
-      border-radius: 4px;
+      margin-top: 1rem;
+      cursor: pointer;
+      font-weight: bold;
     }
   </style>
 </head>
 <body>
 
   <div class="filter-section">
-    <label>Start Date</label>
-    <input type="datetime-local" id="startDate">
+    <label for="startDate">Start Date</label>
+    <input type="datetime-local" id="startDate" />
 
-    <label>End Date</label>
-    <input type="datetime-local" id="endDate">
+    <label for="endDate">End Date</label>
+    <input type="datetime-local" id="endDate" />
 
     <button onclick="getCustomers()">Get Customer</button>
 
-    <label>Select Customer</label>
+    <label for="customerSelect">Select Customer</label>
     <select id="customerSelect">
       <option>Select customer</option>
     </select>
 
     <button onclick="getMachines()">Get Machine</button>
 
-    <label>Select Machine</label>
+    <label for="machineSelect">Select Machine</label>
     <select id="machineSelect">
       <option>Select machine</option>
     </select>
   </div>
 
   <script>
-    const accessToken = "Skp2xAAE3OqhqKHTMhLY";
-    const telemetryURL = `https://thingsboard.cloud/api/v1/${accessToken}/telemetry`;
+    const deviceId = "MkhwiIhNF60zFibs1EA3"; // Device ID
+    const jwt = new URLSearchParams(window.location.search).get("token");
+    const apiBaseUrl = "https://thingsboard.cloud";
 
     let allData = [];
 
     async function getCustomers() {
       try {
-        const res = await fetch(telemetryURL);
-        const telemetry = await res.json();
+        const res = await fetch(`${apiBaseUrl}/api/plugins/telemetry/DEVICE/${deviceId}/values/timeseries?keys=Customer,Machine`, {
+          headers: {
+            "X-Authorization": `Bearer ${jwt}`
+          }
+        });
 
-        const customers = telemetry.Customer?.map(entry => entry.value) || [];
-        const machines = telemetry.Machine?.map(entry => entry.value) || [];
+        if (!res.ok) throw new Error("Fetch failed");
 
-        if (customers.length === 0 || machines.length === 0) {
-          alert("Customer or Machine telemetry not available.");
-          return;
-        }
+        const json = await res.json();
+        const customers = json.Customer?.map(x => x.value) || [];
+        const machines = json.Machine?.map(x => x.value) || [];
 
-        // Store both values together
-        allData = customers.map((customer, index) => ({
+        allData = customers.map((customer, i) => ({
           customer,
-          machine: machines[index]
+          machine: machines[i] || "Unknown"
         }));
 
         const uniqueCustomers = [...new Set(customers)];
@@ -99,21 +103,22 @@
           option.textContent = c;
           customerSelect.appendChild(option);
         });
+
       } catch (err) {
         console.error("Error fetching telemetry:", err);
-        alert("Failed to load telemetry data.");
+        alert("Failed to fetch telemetry. Check token and device ID.");
       }
     }
 
     function getMachines() {
       const selectedCustomer = document.getElementById("customerSelect").value;
-      const filteredMachines = allData
-        .filter(item => item.customer === selectedCustomer)
-        .map(item => item.machine);
-
       const machineSelect = document.getElementById("machineSelect");
       machineSelect.innerHTML = '<option>Select machine</option>';
-      filteredMachines.forEach(machine => {
+
+      const filtered = allData.filter(entry => entry.customer === selectedCustomer);
+      const uniqueMachines = [...new Set(filtered.map(item => item.machine))];
+
+      uniqueMachines.forEach(machine => {
         const option = document.createElement("option");
         option.value = machine;
         option.textContent = machine;
@@ -121,6 +126,5 @@
       });
     }
   </script>
-
 </body>
 </html>
