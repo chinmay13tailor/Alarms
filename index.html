@@ -2,23 +2,32 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Customer Table</title>
+  <title>Customer Telemetry Filter (IST)</title>
   <style>
     body {
       font-family: Arial, sans-serif;
       padding: 2rem;
-      background: #f0f0f0;
+      background: #f5f5f5;
+    }
+    .container {
+      max-width: 800px;
+      margin: auto;
+      background: white;
+      padding: 1rem;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    label, input, button {
+      display: block;
+      margin: 0.5rem 0;
     }
     table {
       width: 100%;
-      max-width: 600px;
-      margin: auto;
+      margin-top: 1rem;
       border-collapse: collapse;
-      background: white;
     }
     th, td {
       padding: 0.75rem;
-      text-align: left;
       border: 1px solid #ccc;
     }
     th {
@@ -27,63 +36,85 @@
   </style>
 </head>
 <body>
+  <div class="container">
+    <h2>Fetch Customer Telemetry (IST Range)</h2>
 
-<h2 style="text-align:center">Customer Telemetry</h2>
-<table id="customerTable">
-  <thead>
-    <tr>
-      <th>#</th>
-      <th>Customer</th>
-      <th>Timestamp</th>
-    </tr>
-  </thead>
-  <tbody></tbody>
-</table>
+    <label for="startDate">Start Date & Time (IST):</label>
+    <input type="datetime-local" id="startDate">
 
-<script>
-  const jwt = new URLSearchParams(window.location.search).get("token");
-  const deviceId = "Skp2xAAE3OqhqKHTMhLY";
-  const apiBase = "https://thingsboard.cloud/api";
-  const tableBody = document.querySelector("#customerTable tbody");
+    <label for="endDate">End Date & Time (IST):</label>
+    <input type="datetime-local" id="endDate">
 
-  async function loadCustomers() {
-    try {
-      const url = `${apiBase}/plugins/telemetry/DEVICE/${deviceId}/values/timeseries?keys=Customer`;
-      const res = await fetch(url, {
-        headers: { "X-Authorization": `Bearer ${jwt}` }
-      });
+    <button onclick="fetchCustomerData()">Fetch Customer Data</button>
 
-      if (!res.ok) throw new Error("Failed to fetch");
+    <table id="customerTable">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Customer</th>
+          <th>Timestamp (IST)</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
 
-      const data = await res.json();
-      const entries = data.Customer || [];
+  <script>
+    const baseUrl = "https://thingsboard.cloud/api";
+    const deviceId = "Skp2xAAE3OqhqKHTMhLY"; // Device Access Token
+    const token = new URLSearchParams(window.location.search).get("token");
+    const tableBody = document.querySelector("#customerTable tbody");
 
-      entries.forEach((entry, i) => {
-        const row = document.createElement("tr");
-        row.innerHTML = `
-          <td>${i + 1}</td>
-          <td>${entry.value}</td>
-          <td>${new Date(entry.ts).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}</td>
-        `;
-        tableBody.appendChild(row);
-      });
+    function toEpochUTC(istDatetime) {
+      const date = new Date(istDatetime);
+      return date.getTime(); // ThingsBoard needs UTC timestamp in ms
+    }
 
-      if (entries.length === 0) {
-        tableBody.innerHTML = `<tr><td colspan="3">No Customer telemetry found.</td></tr>`;
+    async function fetchCustomerData() {
+      const startInput = document.getElementById("startDate").value;
+      const endInput = document.getElementById("endDate").value;
+      if (!startInput || !endInput) {
+        alert("Please enter both start and end dates.");
+        return;
       }
 
-    } catch (err) {
-      console.error("Error loading customer data:", err);
-      tableBody.innerHTML = `<tr><td colspan="3">Failed to load data.</td></tr>`;
+      const startTs = toEpochUTC(startInput);
+      const endTs = toEpochUTC(endInput);
+
+      const url = `${baseUrl}/plugins/telemetry/DEVICE/${deviceId}/values/timeseries?keys=Customer&startTs=${startTs}&endTs=${endTs}&limit=1000&agg=NONE`;
+
+      try {
+        const res = await fetch(url, {
+          headers: { "X-Authorization": `Bearer ${token}` }
+        });
+        const data = await res.json();
+        const entries = data.Customer || [];
+
+        tableBody.innerHTML = "";
+
+        if (entries.length === 0) {
+          tableBody.innerHTML = "<tr><td colspan='3'>No data found</td></tr>";
+          return;
+        }
+
+        entries.forEach((entry, index) => {
+          const row = document.createElement("tr");
+          const istDate = new Date(entry.ts).toLocaleString("en-IN", {
+            timeZone: "Asia/Kolkata"
+          });
+          row.innerHTML = `
+            <td>${index + 1}</td>
+            <td>${entry.value}</td>
+            <td>${istDate}</td>
+          `;
+          tableBody.appendChild(row);
+        });
+
+      } catch (err) {
+        console.error("Fetch error:", err);
+        alert("Error fetching telemetry data.");
+      }
     }
-  }
-
-  if (!jwt) {
-    alert("Missing token. Please add ?token=YOUR_JWT_TOKEN in the URL.");
-  } else {
-    loadCustomers();
-  }
-</script>
-
+  </script>
 </body>
 </html>
