@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Filter by Customer and Machine</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+      background: #f2f2f2;
+    }
+    .filter-section {
+      display: flex;
+      flex-direction: column;
+      max-width: 500px;
+      margin: auto;
+      background: #fff;
+      padding: 1rem;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    label {
+      margin-top: 10px;
+      font-weight: bold;
+    }
+    input, select, button {
+      margin-top: 5px;
+      padding: 8px;
+      font-size: 1rem;
+    }
+    button {
+      cursor: pointer;
+      margin-top: 15px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="filter-section">
+    <label>Start Date</label>
+    <input type="datetime-local" id="startDate">
+
+    <label>End Date</label>
+    <input type="datetime-local" id="endDate">
+
+    <button onclick="getCustomers()">Get Customer</button>
+
+    <label>Select Customer</label>
+    <select id="customerSelect"></select>
+
+    <button onclick="getMachines()">Get Machine</button>
+
+    <label>Select Machine</label>
+    <select id="machineSelect"></select>
+  </div>
+
+  <script>
+    const deviceId = "MkhwiIhNF60zFibs1EA3";
+    const jwt = new URLSearchParams(window.location.search).get("token");
+    const baseUrl = "https://thingsboard.cloud";
+
+    let allData = [];
+
+    async function getCustomers() {
+      try {
+        const res = await fetch(`${baseUrl}/api/plugins/telemetry/DEVICE/${deviceId}/attributes/SERVER_SCOPE`, {
+          headers: {
+            "X-Authorization": `Bearer ${jwt}`
+          }
+        });
+
+        const data = await res.json();
+        const customerAttr = data.find(attr => attr.key === "Customer");
+        const machineAttr = data.find(attr => attr.key === "Machine");
+
+        if (!customerAttr || !machineAttr) {
+          alert("Customer or Machine attribute missing on server.");
+          return;
+        }
+
+        const customers = JSON.parse(customerAttr.value);
+        const machines = JSON.parse(machineAttr.value);
+        allData = customers.map((customer, i) => ({
+          customer,
+          machine: machines[i]
+        }));
+
+        const uniqueCustomers = [...new Set(customers)];
+        const customerSelect = document.getElementById("customerSelect");
+        customerSelect.innerHTML = "";
+        uniqueCustomers.forEach(c => {
+          const option = document.createElement("option");
+          option.value = c;
+          option.textContent = c;
+          customerSelect.appendChild(option);
+        });
+
+      } catch (err) {
+        console.error("Error fetching attributes:", err);
+      }
+    }
+
+    function getMachines() {
+      const selectedCustomer = document.getElementById("customerSelect").value;
+      const filteredMachines = allData
+        .filter(item => item.customer === selectedCustomer)
+        .map(item => item.machine);
+
+      const machineSelect = document.getElementById("machineSelect");
+      machineSelect.innerHTML = "";
+      filteredMachines.forEach(m => {
+        const option = document.createElement("option");
+        option.value = m;
+        option.textContent = m;
+        machineSelect.appendChild(option);
+      });
+    }
+  </script>
+
+</body>
+</html>
