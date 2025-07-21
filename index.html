@@ -9,52 +9,65 @@
       padding: 2rem;
       background: #f2f2f2;
     }
+
     .filter-section {
       display: flex;
       flex-direction: column;
       max-width: 500px;
       margin: auto;
       background: #fff;
-      padding: 1rem;
-      border-radius: 8px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      padding: 1.5rem;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
     }
+
     label {
       margin-top: 10px;
       font-weight: bold;
     }
+
     input, select, button {
       margin-top: 5px;
-      padding: 8px;
+      padding: 10px;
       font-size: 1rem;
     }
+
     button {
-      cursor: pointer;
       margin-top: 15px;
+      cursor: pointer;
+      background-color: #f7b500;
+      border: none;
+      border-radius: 5px;
+      color: #000;
+      font-weight: bold;
+    }
+
+    select:disabled {
+      background-color: #e0e0e0;
     }
   </style>
 </head>
 <body>
 
   <div class="filter-section">
-    <label>Start Date</label>
+    <label for="startDate">Start Date</label>
     <input type="datetime-local" id="startDate">
 
-    <label>End Date</label>
+    <label for="endDate">End Date</label>
     <input type="datetime-local" id="endDate">
 
     <button onclick="getCustomers()">Get Customer</button>
 
-    <label>Select Customer</label>
+    <label for="customerSelect">Select Customer</label>
     <select id="customerSelect">
-      <option disabled selected>Select customer</option>
+      <option>Select customer</option>
     </select>
 
     <button onclick="getMachines()">Get Machine</button>
 
-    <label>Select Machine</label>
+    <label for="machineSelect">Select Machine</label>
     <select id="machineSelect">
-      <option disabled selected>Select machine</option>
+      <option>Select machine</option>
     </select>
   </div>
 
@@ -63,48 +76,36 @@
     const jwt = new URLSearchParams(window.location.search).get("token");
     const baseUrl = "https://thingsboard.cloud";
 
-    if (!jwt) {
-      alert("Missing JWT token in the URL. Use ?token=YOUR_JWT_TOKEN");
-    }
-
     let allData = [];
 
     async function getCustomers() {
-      const start = document.getElementById("startDate").value;
-      const end = document.getElementById("endDate").value;
-
-      if (!start || !end) {
-        alert("Please select both Start Date and End Date.");
-        return;
-      }
-
       try {
-        const res = await fetch(`${baseUrl}/api/plugins/telemetry/DEVICE/${deviceId}/attributes/SERVER_SCOPE`, {
+        const res = await fetch(`${baseUrl}/api/plugins/telemetry/DEVICE/${deviceId}/values/attributes/SERVER_SCOPE`, {
           headers: {
             "X-Authorization": `Bearer ${jwt}`
           }
         });
 
         const data = await res.json();
-        const customerAttr = data.find(attr => attr.key === "Customer");
-        const machineAttr = data.find(attr => attr.key === "Machine");
+        const customerAttr = data.Customer?.[0];
+        const machineAttr = data.Machine?.[0];
 
         if (!customerAttr || !machineAttr) {
-          alert("Customer or Machine server attribute missing.");
+          alert("Missing 'Customer' or 'Machine' attribute in server scope.");
           return;
         }
 
         const customers = JSON.parse(customerAttr.value);
         const machines = JSON.parse(machineAttr.value);
 
-        allData = customers.map((customer, i) => ({
+        allData = customers.map((customer, index) => ({
           customer,
-          machine: machines[i]
+          machine: machines[index]
         }));
 
         const uniqueCustomers = [...new Set(customers)];
         const customerSelect = document.getElementById("customerSelect");
-        customerSelect.innerHTML = '<option disabled selected>Select customer</option>';
+        customerSelect.innerHTML = "";
         uniqueCustomers.forEach(c => {
           const option = document.createElement("option");
           option.value = c;
@@ -114,24 +115,18 @@
 
       } catch (err) {
         console.error("Error fetching server attributes:", err);
-        alert("Failed to fetch customer/machine data.");
+        alert("Failed to load customer data.");
       }
     }
 
     function getMachines() {
       const selectedCustomer = document.getElementById("customerSelect").value;
-
-      if (!selectedCustomer) {
-        alert("Please select a customer first.");
-        return;
-      }
-
       const filteredMachines = allData
-        .filter(item => item.customer === selectedCustomer)
-        .map(item => item.machine);
+        .filter(entry => entry.customer === selectedCustomer)
+        .map(entry => entry.machine);
 
       const machineSelect = document.getElementById("machineSelect");
-      machineSelect.innerHTML = '<option disabled selected>Select machine</option>';
+      machineSelect.innerHTML = "";
       filteredMachines.forEach(m => {
         const option = document.createElement("option");
         option.value = m;
