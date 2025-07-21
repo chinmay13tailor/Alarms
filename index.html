@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Filter by Customer and Machine (Telemetry)</title>
+  <title>Filter by Customer and Machine</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -16,9 +16,9 @@
       max-width: 500px;
       margin: auto;
       background: #fff;
-      padding: 1.5rem;
-      border-radius: 10px;
-      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      padding: 1rem;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
     }
 
     label {
@@ -28,44 +28,38 @@
 
     input, select, button {
       margin-top: 5px;
-      padding: 10px;
+      padding: 8px;
       font-size: 1rem;
     }
 
     button {
-      margin-top: 15px;
       cursor: pointer;
-      background-color: #f7b500;
+      background-color: orange;
+      color: black;
       border: none;
-      border-radius: 5px;
-      color: #000;
-      font-weight: bold;
-    }
-
-    select:disabled {
-      background-color: #e0e0e0;
+      border-radius: 4px;
     }
   </style>
 </head>
 <body>
 
   <div class="filter-section">
-    <label for="startDate">Start Date</label>
+    <label>Start Date</label>
     <input type="datetime-local" id="startDate">
 
-    <label for="endDate">End Date</label>
+    <label>End Date</label>
     <input type="datetime-local" id="endDate">
 
     <button onclick="getCustomers()">Get Customer</button>
 
-    <label for="customerSelect">Select Customer</label>
+    <label>Select Customer</label>
     <select id="customerSelect">
       <option>Select customer</option>
     </select>
 
     <button onclick="getMachines()">Get Machine</button>
 
-    <label for="machineSelect">Select Machine</label>
+    <label>Select Machine</label>
     <select id="machineSelect">
       <option>Select machine</option>
     </select>
@@ -73,27 +67,24 @@
 
   <script>
     const accessToken = "Skp2xAAE3OqhqKHTMhLY";
-    const baseUrl = "https://thingsboard.cloud";
-    const telemetryKeys = ["Customer", "Machine", "Machine_Token"];
+    const telemetryURL = `https://thingsboard.cloud/api/v1/${accessToken}/telemetry`;
+
     let allData = [];
 
     async function getCustomers() {
       try {
-        const keys = telemetryKeys.join(",");
-        const res = await fetch(`${baseUrl}/api/v1/${accessToken}/telemetry`, {
-          method: "GET"
-        });
+        const res = await fetch(telemetryURL);
+        const telemetry = await res.json();
 
-        const data = await res.json();
+        const customers = telemetry.Customer?.map(entry => entry.value) || [];
+        const machines = telemetry.Machine?.map(entry => entry.value) || [];
 
-        const customers = JSON.parse(data.Customer?.[0]?.value || "[]");
-        const machines = JSON.parse(data.Machine?.[0]?.value || "[]");
-
-        if (!customers.length || !machines.length) {
-          alert("Telemetry Customer or Machine not available or malformed.");
+        if (customers.length === 0 || machines.length === 0) {
+          alert("Customer or Machine telemetry not available.");
           return;
         }
 
+        // Store both values together
         allData = customers.map((customer, index) => ({
           customer,
           machine: machines[index]
@@ -101,32 +92,31 @@
 
         const uniqueCustomers = [...new Set(customers)];
         const customerSelect = document.getElementById("customerSelect");
-        customerSelect.innerHTML = "";
+        customerSelect.innerHTML = '<option>Select customer</option>';
         uniqueCustomers.forEach(c => {
           const option = document.createElement("option");
           option.value = c;
           option.textContent = c;
           customerSelect.appendChild(option);
         });
-
       } catch (err) {
         console.error("Error fetching telemetry:", err);
-        alert("Failed to fetch telemetry data.");
+        alert("Failed to load telemetry data.");
       }
     }
 
     function getMachines() {
       const selectedCustomer = document.getElementById("customerSelect").value;
       const filteredMachines = allData
-        .filter(entry => entry.customer === selectedCustomer)
-        .map(entry => entry.machine);
+        .filter(item => item.customer === selectedCustomer)
+        .map(item => item.machine);
 
       const machineSelect = document.getElementById("machineSelect");
-      machineSelect.innerHTML = "";
-      filteredMachines.forEach(m => {
+      machineSelect.innerHTML = '<option>Select machine</option>';
+      filteredMachines.forEach(machine => {
         const option = document.createElement("option");
-        option.value = m;
-        option.textContent = m;
+        option.value = machine;
+        option.textContent = machine;
         machineSelect.appendChild(option);
       });
     }
