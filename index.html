@@ -46,12 +46,16 @@
     <button onclick="getCustomers()">Get Customer</button>
 
     <label>Select Customer</label>
-    <select id="customerSelect"></select>
+    <select id="customerSelect">
+      <option disabled selected>Select customer</option>
+    </select>
 
     <button onclick="getMachines()">Get Machine</button>
 
     <label>Select Machine</label>
-    <select id="machineSelect"></select>
+    <select id="machineSelect">
+      <option disabled selected>Select machine</option>
+    </select>
   </div>
 
   <script>
@@ -59,9 +63,21 @@
     const jwt = new URLSearchParams(window.location.search).get("token");
     const baseUrl = "https://thingsboard.cloud";
 
+    if (!jwt) {
+      alert("Missing JWT token in the URL. Use ?token=YOUR_JWT_TOKEN");
+    }
+
     let allData = [];
 
     async function getCustomers() {
+      const start = document.getElementById("startDate").value;
+      const end = document.getElementById("endDate").value;
+
+      if (!start || !end) {
+        alert("Please select both Start Date and End Date.");
+        return;
+      }
+
       try {
         const res = await fetch(`${baseUrl}/api/plugins/telemetry/DEVICE/${deviceId}/attributes/SERVER_SCOPE`, {
           headers: {
@@ -74,12 +90,13 @@
         const machineAttr = data.find(attr => attr.key === "Machine");
 
         if (!customerAttr || !machineAttr) {
-          alert("Customer or Machine attribute missing on server.");
+          alert("Customer or Machine server attribute missing.");
           return;
         }
 
         const customers = JSON.parse(customerAttr.value);
         const machines = JSON.parse(machineAttr.value);
+
         allData = customers.map((customer, i) => ({
           customer,
           machine: machines[i]
@@ -87,7 +104,7 @@
 
         const uniqueCustomers = [...new Set(customers)];
         const customerSelect = document.getElementById("customerSelect");
-        customerSelect.innerHTML = "";
+        customerSelect.innerHTML = '<option disabled selected>Select customer</option>';
         uniqueCustomers.forEach(c => {
           const option = document.createElement("option");
           option.value = c;
@@ -96,18 +113,25 @@
         });
 
       } catch (err) {
-        console.error("Error fetching attributes:", err);
+        console.error("Error fetching server attributes:", err);
+        alert("Failed to fetch customer/machine data.");
       }
     }
 
     function getMachines() {
       const selectedCustomer = document.getElementById("customerSelect").value;
+
+      if (!selectedCustomer) {
+        alert("Please select a customer first.");
+        return;
+      }
+
       const filteredMachines = allData
         .filter(item => item.customer === selectedCustomer)
         .map(item => item.machine);
 
       const machineSelect = document.getElementById("machineSelect");
-      machineSelect.innerHTML = "";
+      machineSelect.innerHTML = '<option disabled selected>Select machine</option>';
       filteredMachines.forEach(m => {
         const option = document.createElement("option");
         option.value = m;
