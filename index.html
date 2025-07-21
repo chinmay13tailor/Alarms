@@ -1,130 +1,89 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Customer & Machine Filter</title>
+  <meta charset="UTF-8">
+  <title>Customer Table</title>
   <style>
     body {
       font-family: Arial, sans-serif;
       padding: 2rem;
-      background: #f2f2f2;
+      background: #f0f0f0;
     }
-
-    .filter-section {
-      max-width: 500px;
-      margin: auto;
-      background: #fff;
-      padding: 1.5rem;
-      border-radius: 8px;
-      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-    }
-
-    label {
-      font-weight: bold;
-      margin-top: 1rem;
-      display: block;
-    }
-
-    input, select, button {
+    table {
       width: 100%;
-      margin-top: 0.3rem;
-      padding: 0.6rem;
-      font-size: 1rem;
-      border-radius: 4px;
+      max-width: 600px;
+      margin: auto;
+      border-collapse: collapse;
+      background: white;
+    }
+    th, td {
+      padding: 0.75rem;
+      text-align: left;
       border: 1px solid #ccc;
     }
-
-    button {
-      background-color: orange;
-      color: white;
-      border: none;
-      margin-top: 1rem;
-      cursor: pointer;
-      font-weight: bold;
+    th {
+      background: #ffcc00;
     }
   </style>
 </head>
 <body>
 
-  <div class="filter-section">
-    <label for="startDate">Start Date</label>
-    <input type="datetime-local" id="startDate" />
+<h2 style="text-align:center">Customer Telemetry</h2>
+<table id="customerTable">
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Customer</th>
+      <th>Timestamp</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
 
-    <label for="endDate">End Date</label>
-    <input type="datetime-local" id="endDate" />
+<script>
+  const jwt = new URLSearchParams(window.location.search).get("token");
+  const deviceId = "Skp2xAAE3OqhqKHTMhLY";
+  const apiBase = "https://thingsboard.cloud/api";
+  const tableBody = document.querySelector("#customerTable tbody");
 
-    <button onclick="getCustomers()">Get Customer</button>
-
-    <label for="customerSelect">Select Customer</label>
-    <select id="customerSelect">
-      <option>Select customer</option>
-    </select>
-
-    <button onclick="getMachines()">Get Machine</button>
-
-    <label for="machineSelect">Select Machine</label>
-    <select id="machineSelect">
-      <option>Select machine</option>
-    </select>
-  </div>
-
-  <script>
-    const deviceId = "MkhwiIhNF60zFibs1EA3"; // Device ID
-    const jwt = new URLSearchParams(window.location.search).get("token");
-    const apiBaseUrl = "https://thingsboard.cloud";
-
-    let allData = [];
-
-    async function getCustomers() {
-      try {
-        const res = await fetch(`${apiBaseUrl}/api/plugins/telemetry/DEVICE/${deviceId}/values/timeseries?keys=Customer,Machine`, {
-          headers: {
-            "X-Authorization": `Bearer ${jwt}`
-          }
-        });
-
-        if (!res.ok) throw new Error("Fetch failed");
-
-        const json = await res.json();
-        const customers = json.Customer?.map(x => x.value) || [];
-        const machines = json.Machine?.map(x => x.value) || [];
-
-        allData = customers.map((customer, i) => ({
-          customer,
-          machine: machines[i] || "Unknown"
-        }));
-
-        const uniqueCustomers = [...new Set(customers)];
-        const customerSelect = document.getElementById("customerSelect");
-        customerSelect.innerHTML = '<option>Select customer</option>';
-        uniqueCustomers.forEach(c => {
-          const option = document.createElement("option");
-          option.value = c;
-          option.textContent = c;
-          customerSelect.appendChild(option);
-        });
-
-      } catch (err) {
-        console.error("Error fetching telemetry:", err);
-        alert("Failed to fetch telemetry. Check token and device ID.");
-      }
-    }
-
-    function getMachines() {
-      const selectedCustomer = document.getElementById("customerSelect").value;
-      const machineSelect = document.getElementById("machineSelect");
-      machineSelect.innerHTML = '<option>Select machine</option>';
-
-      const filtered = allData.filter(entry => entry.customer === selectedCustomer);
-      const uniqueMachines = [...new Set(filtered.map(item => item.machine))];
-
-      uniqueMachines.forEach(machine => {
-        const option = document.createElement("option");
-        option.value = machine;
-        option.textContent = machine;
-        machineSelect.appendChild(option);
+  async function loadCustomers() {
+    try {
+      const url = `${apiBase}/plugins/telemetry/DEVICE/${deviceId}/values/timeseries?keys=Customer`;
+      const res = await fetch(url, {
+        headers: { "X-Authorization": `Bearer ${jwt}` }
       });
+
+      if (!res.ok) throw new Error("Failed to fetch");
+
+      const data = await res.json();
+      const entries = data.Customer || [];
+
+      entries.forEach((entry, i) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${i + 1}</td>
+          <td>${entry.value}</td>
+          <td>${new Date(entry.ts).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}</td>
+        `;
+        tableBody.appendChild(row);
+      });
+
+      if (entries.length === 0) {
+        tableBody.innerHTML = `<tr><td colspan="3">No Customer telemetry found.</td></tr>`;
+      }
+
+    } catch (err) {
+      console.error("Error loading customer data:", err);
+      tableBody.innerHTML = `<tr><td colspan="3">Failed to load data.</td></tr>`;
     }
-  </script>
+  }
+
+  if (!jwt) {
+    alert("Missing token. Please add ?token=YOUR_JWT_TOKEN in the URL.");
+  } else {
+    loadCustomers();
+  }
+</script>
+
 </body>
 </html>
