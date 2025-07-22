@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Customer & Machine Filter</title>
+  <title>Auto Filter: Customer & Machine</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -15,13 +15,10 @@
       margin-bottom: 20px;
     }
 
-    input, select, button {
+    input, select {
       padding: 0.5rem;
       font-size: 1rem;
       margin: 0.3rem;
-    }
-
-    select {
       min-width: 200px;
     }
 
@@ -33,7 +30,7 @@
 </head>
 <body>
 
-  <h2>Customer & Machine Filter</h2>
+  <h2>Customer & Machine Auto Filter</h2>
 
   <div class="filter-box">
     <label for="startDate">Start Date & Time:</label>
@@ -44,8 +41,6 @@
   </div>
 
   <div>
-    <button onclick="fetchCustomers()">Fetch Customers</button><br><br>
-
     <label for="customerSelect">Select Customer:</label>
     <select id="customerSelect">
       <option value="">-- Select Customer --</option>
@@ -53,8 +48,6 @@
   </div>
 
   <div>
-    <button onclick="fetchMachines()">Fetch Machines</button><br><br>
-
     <label for="machineSelect">Select Machine:</label>
     <select id="machineSelect">
       <option value="">-- Select Machine --</option>
@@ -65,74 +58,66 @@
 
   <script>
     const jwt = new URLSearchParams(window.location.search).get("token");
-    const deviceAccessToken = "03990870-4108-11f0-9143-ed31251bb06c"; // Replace with your real device ID
+    const deviceAccessToken = "03990870-4108-11f0-9143-ed31251bb06c";
     const baseUrl = "https://thingsboard.cloud/api";
-
     let telemetryData = [];
+
+    const startInput = document.getElementById("startDate");
+    const endInput = document.getElementById("endDate");
+    const customerSelect = document.getElementById("customerSelect");
+    const machineSelect = document.getElementById("machineSelect");
+    const errorMsg = document.getElementById("errorMsg");
 
     async function fetchTelemetryData(startTs, endTs) {
       const url = `${baseUrl}/plugins/telemetry/DEVICE/${deviceAccessToken}/values/timeseries?keys=Customer,Machine&startTs=${startTs}&endTs=${endTs}&limit=1000&agg=NONE`;
-
       const res = await fetch(url, {
-        headers: {
-          "X-Authorization": `Bearer ${jwt}`
-        }
+        headers: { "X-Authorization": `Bearer ${jwt}` }
       });
-
       if (!res.ok) throw new Error("Failed to fetch telemetry");
       return await res.json();
     }
 
-    async function fetchCustomers() {
-      const startInput = document.getElementById("startDate").value;
-      const endInput = document.getElementById("endDate").value;
-      const errorMsg = document.getElementById("errorMsg");
+    async function updateCustomerDropdown() {
       errorMsg.textContent = "";
+      customerSelect.innerHTML = '<option value="">-- Select Customer --</option>';
+      machineSelect.innerHTML = '<option value="">-- Select Machine --</option>';
 
-      if (!startInput || !endInput) {
-        errorMsg.textContent = "Please select both start and end datetime.";
-        return;
-      }
+      const start = startInput.value;
+      const end = endInput.value;
+      if (!start || !end) return;
 
-      const startTs = new Date(startInput).getTime();
-      const endTs = new Date(endInput).getTime();
+      const startTs = new Date(start).getTime();
+      const endTs = new Date(end).getTime();
 
       try {
         const data = await fetchTelemetryData(startTs, endTs);
-        const customerArr = data.Customer || [];
-        const machineArr = data.Machine || [];
+        const customers = data.Customer || [];
+        const machines = data.Machine || [];
 
-        telemetryData = customerArr.map((c, i) => ({
+        telemetryData = customers.map((c, i) => ({
           customer: c.value,
-          machine: machineArr[i]?.value || "",
+          machine: machines[i]?.value || "",
           ts: c.ts
         }));
 
         const uniqueCustomers = [...new Set(telemetryData.map(d => d.customer))];
-
-        const customerSelect = document.getElementById("customerSelect");
-        customerSelect.innerHTML = '<option value="">-- Select Customer --</option>';
         uniqueCustomers.forEach(c => {
           const option = document.createElement("option");
           option.value = c;
           option.textContent = c;
           customerSelect.appendChild(option);
         });
-
       } catch (err) {
         console.error(err);
-        errorMsg.textContent = "Failed to load customer data.";
+        errorMsg.textContent = "Failed to fetch customer data.";
       }
     }
 
-    function fetchMachines() {
-      const selectedCustomer = document.getElementById("customerSelect").value;
-      const machineSelect = document.getElementById("machineSelect");
+    function updateMachineDropdown() {
       machineSelect.innerHTML = '<option value="">-- Select Machine --</option>';
-
+      const selectedCustomer = customerSelect.value;
       const filtered = telemetryData.filter(d => d.customer === selectedCustomer);
       const uniqueMachines = [...new Set(filtered.map(d => d.machine))];
-
       uniqueMachines.forEach(m => {
         const option = document.createElement("option");
         option.value = m;
@@ -140,6 +125,10 @@
         machineSelect.appendChild(option);
       });
     }
+
+    startInput.addEventListener("change", updateCustomerDropdown);
+    endInput.addEventListener("change", updateCustomerDropdown);
+    customerSelect.addEventListener("change", updateMachineDropdown);
   </script>
 
 </body>
