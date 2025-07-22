@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Customer Telemetry</title>
+  <title>Customer & Machine Filter</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -15,25 +15,14 @@
       margin-bottom: 20px;
     }
 
-    input, button {
+    input, select, button {
       padding: 0.5rem;
       font-size: 1rem;
       margin: 0.3rem;
     }
 
-    table {
-      margin: auto;
-      border-collapse: collapse;
-      width: 60%;
-    }
-
-    th, td {
-      border: 1px solid #ccc;
-      padding: 10px;
-    }
-
-    th {
-      background: orange;
+    select {
+      min-width: 200px;
     }
 
     .error {
@@ -44,48 +33,64 @@
 </head>
 <body>
 
-  <h2>Customer Telemetry</h2>
+  <h2>Customer & Machine Filter</h2>
 
   <div class="filter-box">
     <label for="startDate">Start Date & Time:</label>
     <input type="datetime-local" id="startDate" step="1">
+
     <label for="endDate">End Date & Time:</label>
     <input type="datetime-local" id="endDate" step="1">
-    <button onclick="loadTelemetry()">Generate</button>
   </div>
 
-  <table id="resultTable">
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>Customer</th>
-        <th>Timestamp (IST)</th>
-      </tr>
-    </thead>
-    <tbody id="tableBody">
-      <tr><td colspan="3">No data</td></tr>
-    </tbody>
-  </table>
+  <div>
+    <button onclick="fetchCustomers()">Fetch Customers</button><br><br>
+
+    <label for="customerSelect">Select Customer:</label>
+    <select id="customerSelect">
+      <option value="">-- Select Customer --</option>
+    </select>
+  </div>
+
+  <div>
+    <button onclick="fetchMachines()">Fetch Machines</button><br><br>
+
+    <label for="machineSelect">Select Machine:</label>
+    <select id="machineSelect">
+      <option value="">-- Select Machine --</option>
+    </select>
+  </div>
 
   <p class="error" id="errorMsg"></p>
 
   <script>
     const jwt = new URLSearchParams(window.location.search).get("token");
-    const deviceAccessToken = "03990870-4108-11f0-9143-ed31251bb06c";
+    const deviceAccessToken = "03990870-4108-11f0-9143-ed31251bb06c"; // Replace with your real device ID
     const baseUrl = "https://thingsboard.cloud/api";
 
-    async function loadTelemetry() {
+    let telemetryData = [];
+
+    async function fetchTelemetryData(startTs, endTs) {
+      const url = `${baseUrl}/plugins/telemetry/DEVICE/${deviceAccessToken}/values/timeseries?keys=Customer,Machine&startTs=${startTs}&endTs=${endTs}&limit=1000&agg=NONE`;
+
+      const res = await fetch(url, {
+        headers: {
+          "X-Authorization": `Bearer ${jwt}`
+        }
+      });
+
+      if (!res.ok) throw new Error("Failed to fetch telemetry");
+      return await res.json();
+    }
+
+    async function fetchCustomers() {
       const startInput = document.getElementById("startDate").value;
       const endInput = document.getElementById("endDate").value;
       const errorMsg = document.getElementById("errorMsg");
-      const tableBody = document.getElementById("tableBody");
-
       errorMsg.textContent = "";
-      tableBody.innerHTML = '<tr><td colspan="3">Loading...</td></tr>';
 
       if (!startInput || !endInput) {
         errorMsg.textContent = "Please select both start and end datetime.";
-        tableBody.innerHTML = '<tr><td colspan="3">No data</td></tr>';
         return;
       }
 
@@ -93,39 +98,49 @@
       const endTs = new Date(endInput).getTime();
 
       try {
-        const res = await fetch(`${baseUrl}/plugins/telemetry/DEVICE/${deviceAccessToken}/values/timeseries?keys=Customer&startTs=${startTs}&endTs=${endTs}&limit=1000&agg=NONE`, {
-          headers: {
-            "X-Authorization": `Bearer ${jwt}`
-          }
-        });
+        const data = await fetchTelemetryData(startTs, endTs);
+        const customerArr = data.Customer || [];
+        const machineArr = data.Machine || [];
 
-        const json = await res.json();
-        const rows = json.Customer || [];
+        telemetryData = customerArr.map((c, i) => ({
+          customer: c.value,
+          machine: machineArr[i]?.value || "",
+          ts: c.ts
+        }));
 
-        if (rows.length === 0) {
-          tableBody.innerHTML = '<tr><td colspan="3">No data found.</td></tr>';
-          return;
-        }
+        const uniqueCustomers = [...new Set(telemetryData.map(d => d.customer))];
 
-        tableBody.innerHTML = "";
-        rows.forEach((entry, index) => {
-          const row = document.createElement("tr");
-          const timeIST = new Date(entry.ts).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
-
-          row.innerHTML = `
-            <td>${index + 1}</td>
-            <td>${entry.value}</td>
-            <td>${timeIST}</td>
-          `;
-          tableBody.appendChild(row);
+        const customerSelect = document.getElementById("customerSelect");
+        customerSelect.innerHTML = '<option value="">-- Select Customer --</option>';
+        uniqueCustomers.forEach(c => {
+          const option = document.createElement("option");
+          option.value = c;
+          option.textContent = c;
+          customerSelect.appendChild(option);
         });
 
       } catch (err) {
-        console.error("Error fetching telemetry:", err);
-        errorMsg.textContent = "Failed to load data. Check token or device ID.";
-        tableBody.innerHTML = '<tr><td colspan="3">Error</td></tr>';
+        console.error(err);
+        errorMsg.textContent = "Failed to load customer data.";
       }
     }
+
+    function fetchMachines() {
+      const selectedCustomer = document.getElementById("customerSelect").value;
+      const machineSelect = document.getElementById("machineSelect");
+      machineSelect.innerHTML = '<option value="">-- Select Machine --</option>';
+
+      const filtered = telemetryData.filter(d => d.customer === selectedCustomer);
+      const uniqueMachines = [...new Set(filtered.map(d => d.machine))];
+
+      uniqueMachines.forEach(m => {
+        const option = document.createElement("option");
+        option.value = m;
+        option.textContent = m;
+        machineSelect.appendChild(option);
+      });
+    }
   </script>
+
 </body>
 </html>
