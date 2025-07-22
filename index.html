@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Auto Filter: Customer & Machine</title>
+  <title>Auto Filter: Customer & Machine Token</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -10,18 +10,19 @@
       padding: 2rem;
       text-align: center;
     }
-
     .filter-box {
       margin-bottom: 20px;
     }
-
     input, select {
       padding: 0.5rem;
       font-size: 1rem;
       margin: 0.3rem;
       min-width: 200px;
     }
-
+    .output {
+      margin-top: 1rem;
+      font-weight: bold;
+    }
     .error {
       color: red;
       margin-top: 10px;
@@ -30,7 +31,7 @@
 </head>
 <body>
 
-  <h2>Customer & Machine Auto Filter</h2>
+  <h2>Customer & Machine Auto Filter with Token</h2>
 
   <div class="filter-box">
     <label for="startDate">Start Date & Time:</label>
@@ -54,22 +55,28 @@
     </select>
   </div>
 
+  <div class="output">
+    <div>Machine Token: <span id="tokenDisplay">-</span></div>
+  </div>
+
   <p class="error" id="errorMsg"></p>
 
   <script>
     const jwt = new URLSearchParams(window.location.search).get("token");
-    const deviceAccessToken = "03990870-4108-11f0-9143-ed31251bb06c";
+    const masterDeviceId = "03990870-4108-11f0-9143-ed31251bb06c";
     const baseUrl = "https://thingsboard.cloud/api";
+
     let telemetryData = [];
 
     const startInput = document.getElementById("startDate");
     const endInput = document.getElementById("endDate");
     const customerSelect = document.getElementById("customerSelect");
     const machineSelect = document.getElementById("machineSelect");
+    const tokenDisplay = document.getElementById("tokenDisplay");
     const errorMsg = document.getElementById("errorMsg");
 
     async function fetchTelemetryData(startTs, endTs) {
-      const url = `${baseUrl}/plugins/telemetry/DEVICE/${deviceAccessToken}/values/timeseries?keys=Customer,Machine&startTs=${startTs}&endTs=${endTs}&limit=1000&agg=NONE`;
+      const url = `${baseUrl}/plugins/telemetry/DEVICE/${masterDeviceId}/values/timeseries?keys=Customer,Machine,Machine_Token&startTs=${startTs}&endTs=${endTs}&limit=1000&agg=NONE`;
       const res = await fetch(url, {
         headers: { "X-Authorization": `Bearer ${jwt}` }
       });
@@ -81,6 +88,7 @@
       errorMsg.textContent = "";
       customerSelect.innerHTML = '<option value="">-- Select Customer --</option>';
       machineSelect.innerHTML = '<option value="">-- Select Machine --</option>';
+      tokenDisplay.textContent = "-";
 
       const start = startInput.value;
       const end = endInput.value;
@@ -93,10 +101,12 @@
         const data = await fetchTelemetryData(startTs, endTs);
         const customers = data.Customer || [];
         const machines = data.Machine || [];
+        const tokens = data.Machine_Token || [];
 
         telemetryData = customers.map((c, i) => ({
           customer: c.value,
           machine: machines[i]?.value || "",
+          token: tokens[i]?.value || "",
           ts: c.ts
         }));
 
@@ -115,6 +125,7 @@
 
     function updateMachineDropdown() {
       machineSelect.innerHTML = '<option value="">-- Select Machine --</option>';
+      tokenDisplay.textContent = "-";
       const selectedCustomer = customerSelect.value;
       const filtered = telemetryData.filter(d => d.customer === selectedCustomer);
       const uniqueMachines = [...new Set(filtered.map(d => d.machine))];
@@ -126,9 +137,17 @@
       });
     }
 
+    function showMachineToken() {
+      const customer = customerSelect.value;
+      const machine = machineSelect.value;
+      const match = telemetryData.find(d => d.customer === customer && d.machine === machine);
+      tokenDisplay.textContent = match?.token || "Not Found";
+    }
+
     startInput.addEventListener("change", updateCustomerDropdown);
     endInput.addEventListener("change", updateCustomerDropdown);
     customerSelect.addEventListener("change", updateMachineDropdown);
+    machineSelect.addEventListener("change", showMachineToken);
   </script>
 
 </body>
