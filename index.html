@@ -2,61 +2,104 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Auto Filter: Customer & Machine Token</title>
+  <title>Customer & Machine Selector</title>
   <style>
     body {
-      font-family: Arial, sans-serif;
-      background: #f4f4f4;
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #f5f7fa;
       padding: 2rem;
+      margin: 0;
+      color: #333;
+    }
+
+    h2 {
       text-align: center;
+      margin-bottom: 2rem;
     }
-    .filter-box {
-      margin-bottom: 20px;
+
+    .filter-row {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: center;
+      background: white;
+      padding: 1rem 2rem;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+      max-width: 1200px;
+      margin: auto;
     }
+
+    label {
+      font-weight: 500;
+    }
+
     input, select {
-      padding: 0.5rem;
+      padding: 0.5rem 0.8rem;
       font-size: 1rem;
-      margin: 0.3rem;
-      min-width: 200px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      min-width: 180px;
     }
+
     .output {
-      margin-top: 1rem;
+      margin-top: 1.5rem;
+      text-align: center;
+      font-size: 1.1rem;
+    }
+
+    .highlight {
+      color: #007bff;
       font-weight: bold;
     }
+
     .error {
+      text-align: center;
       color: red;
-      margin-top: 10px;
+      margin-top: 1rem;
+    }
+
+    @media (max-width: 768px) {
+      .filter-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
     }
   </style>
 </head>
 <body>
 
-  <h2>Customer & Machine Auto Filter with Token</h2>
+  <h2>Filter by Date, Customer, and Machine</h2>
 
-  <div class="filter-box">
-    <label for="startDate">Start Date & Time:</label>
-    <input type="datetime-local" id="startDate" step="1">
+  <div class="filter-row">
+    <div>
+      <label for="startDate">Start Time</label><br>
+      <input type="datetime-local" id="startDate" step="1">
+    </div>
 
-    <label for="endDate">End Date & Time:</label>
-    <input type="datetime-local" id="endDate" step="1">
-  </div>
+    <div>
+      <label for="endDate">End Time</label><br>
+      <input type="datetime-local" id="endDate" step="1">
+    </div>
 
-  <div>
-    <label for="customerSelect">Select Customer:</label>
-    <select id="customerSelect">
-      <option value="">-- Select Customer --</option>
-    </select>
-  </div>
+    <div>
+      <label for="customerSelect">Customer</label><br>
+      <select id="customerSelect">
+        <option value="">-- Select Customer --</option>
+      </select>
+    </div>
 
-  <div>
-    <label for="machineSelect">Select Machine:</label>
-    <select id="machineSelect">
-      <option value="">-- Select Machine --</option>
-    </select>
+    <div>
+      <label for="machineSelect">Machine</label><br>
+      <select id="machineSelect">
+        <option value="">-- Select Machine --</option>
+      </select>
+    </div>
   </div>
 
   <div class="output">
-    <div>Machine Token: <span id="tokenDisplay">-</span></div>
+    Machine Token: <span id="tokenDisplay" class="highlight">-</span>
   </div>
 
   <p class="error" id="errorMsg"></p>
