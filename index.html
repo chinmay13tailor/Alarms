@@ -2,205 +2,251 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Alarm Viewer – Grouped by Level</title>
+  <title>Alarm Dashboard</title>
   <style>
     body {
-      font-family: Arial, sans-serif;
-      background: #f4f4f4;
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #f5f7fa;
       padding: 2rem;
+      margin: 0;
       color: #333;
     }
+
     .filter-row {
       display: flex;
+      justify-content: center;
       flex-wrap: wrap;
       gap: 1rem;
       align-items: center;
-      margin-bottom: 1.5rem;
+      background: white;
+      padding: 1rem 2rem;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+      max-width: 1200px;
+      margin: auto;
     }
+
+    label {
+      font-weight: 500;
+    }
+
     input, select, button {
-      padding: 0.5rem 1rem;
+      padding: 0.5rem 0.8rem;
       font-size: 1rem;
       border: 1px solid #ccc;
-      border-radius: 4px;
+      border-radius: 5px;
+      min-width: 160px;
     }
+
     button {
-      background-color: #f0a500;
+      background: orange;
       color: #fff;
       cursor: pointer;
+      border: none;
+      font-weight: bold;
     }
-    .alarms-container {
-      display: flex;
-      gap: 1rem;
-      flex-wrap: wrap;
-      justify-content: space-between;
+
+    table {
+      width: 95%;
+      margin: 2rem auto;
+      border-collapse: collapse;
     }
-    .level-box {
-      flex: 1;
-      background: #fff;
-      border-radius: 8px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-      padding: 0.5rem;
-      max-width: 32%;
-      box-sizing: border-box;
-    }
-    .level-box header {
+
+    th, td {
+      border: 1px solid #ccc;
+      padding: 0.75rem;
       text-align: center;
-      font-weight: bold;
-      padding: 0.5rem;
-      background: #ffd700;
-      border-radius: 6px 6px 0 0;
     }
-    .level-1 header { background: #ffd700; }
-    .level-2 header { background: #90EE90; }
-    .level-3 header { background: #f08080; }
-    .alarm-card {
-      display: flex;
-      align-items: center;
-      margin: 0.5rem 0;
-      padding: 0.5rem;
-      border-bottom: 1px solid #eee;
+
+    th {
+      background: gold;
     }
-    .alarm-card:last-child { border-bottom: none; }
-    .alarm-icon {
-      width: 30px;
-      height: 30px;
-      border-radius: 50%;
-      background: #007bff;
-      color: #fff;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-right: 0.75rem;
-      font-weight: bold;
-      font-size: 1.1rem;
+
+    .error {
+      text-align: center;
+      color: red;
     }
-    .alarm-details {
-      flex: 1;
-    }
-    .alarm-time {
-      font-size: 0.85rem;
-      color: #666;
+
+    @media (max-width: 768px) {
+      .filter-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
     }
   </style>
 </head>
 <body>
 
-  <h2>🔔 Alarm Viewer</h2>
-
   <div class="filter-row">
-    <input type="datetime-local" id="startDate" step="1">
-    <input type="datetime-local" id="endDate" step="1">
-    <select id="customerSelect"></select>
-    <select id="machineSelect"></select>
-    <button id="generateBtn">Generate 🕒</button>
+    <div>
+      <label for="startDate">Start</label><br>
+      <input type="datetime-local" id="startDate" step="1">
+    </div>
+    <div>
+      <label for="endDate">End</label><br>
+      <input type="datetime-local" id="endDate" step="1">
+    </div>
+    <div>
+      <label for="customerSelect">Customer:</label><br>
+      <select id="customerSelect"></select>
+    </div>
+    <div>
+      <label for="machineSelect">Machine:</label><br>
+      <select id="machineSelect"></select>
+    </div>
+    <div>
+      <br>
+      <button onclick="fetchAlarms()">Generate</button>
+    </div>
   </div>
 
-  <div class="alarms-container" id="alarmsContainer">
-    <div class="level-box level-1">
-      <header>Level 1 Alerts</header>
-      <div class="alarms-list" id="lvl1List"></div>
-    </div>
-    <div class="level-box level-2">
-      <header>Level 2 Alerts</header>
-      <div class="alarms-list" id="lvl2List"></div>
-    </div>
-    <div class="level-box level-3">
-      <header>Level 3 Alerts</header>
-      <div class="alarms-list" id="lvl3List"></div>
-    </div>
-  </div>
+  <table id="alarmTable">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Alarm Code</th>
+        <th>Alarm Description</th>
+        <th>Alarm Level</th>
+      </tr>
+    </thead>
+    <tbody id="alarmTableBody">
+      <tr><td colspan="4">No alarms found</td></tr>
+    </tbody>
+  </table>
+
+  <p class="error" id="errorMsg"></p>
 
   <script>
-    const jwt = new URLSearchParams(window.location.search).get('token');
-    const masterDevice = '03990870-4108-11f0-9143-ed31251bb06c';
-    const baseUrl = 'https://thingsboard.cloud/api';
+    const jwt = new URLSearchParams(window.location.search).get("token");
+    const baseUrl = "https://thingsboard.cloud/api";
+    const masterDeviceId = "03990870-4108-11f0-9143-ed31251bb06c";
+    let telemetryData = [];
 
-    let telemetry = [];
-    let machines = [];
+    const startInput = document.getElementById("startDate");
+    const endInput = document.getElementById("endDate");
+    const customerSelect = document.getElementById("customerSelect");
+    const machineSelect = document.getElementById("machineSelect");
+    const tableBody = document.getElementById("alarmTableBody");
+    const errorMsg = document.getElementById("errorMsg");
 
-    async function fetchTelemetry() {
-      const startTs = new Date(startDate.value).getTime();
-      const endTs = new Date(endDate.value).getTime();
-
-      const res = await fetch(`${baseUrl}/plugins/telemetry/DEVICE/${masterDevice}/values/timeseries?keys=Customer,Machine,Machine_Token&startTs=${startTs}&endTs=${endTs}&limit=1000&agg=NONE`, {
-        headers: { 'X-Authorization': `Bearer ${jwt}` }
+    async function fetchTelemetryData(startTs, endTs) {
+      const url = `${baseUrl}/plugins/telemetry/DEVICE/${masterDeviceId}/values/timeseries?keys=Customer,Machine,Machine_Token&startTs=${startTs}&endTs=${endTs}&limit=1000&agg=NONE`;
+      const res = await fetch(url, {
+        headers: { "X-Authorization": `Bearer ${jwt}` }
       });
-      const json = await res.json();
-
-      const c = json.Customer || [];
-      const m = json.Machine || [];
-      const t = json.Machine_Token || [];
-
-      telemetry = c.map((el, i) => ({
-        customer: el.value,
-        machine: m[i]?.value,
-        token: t[i]?.value
-      }));
-
-      populateCustomers();
+      if (!res.ok) throw new Error("Failed to fetch telemetry");
+      return await res.json();
     }
 
-    function populateCustomers() {
-      customerSelect.innerHTML = '<option value="">–Customer–</option>';
-      machines = [];
+    async function updateCustomerDropdown() {
+      errorMsg.textContent = "";
+      customerSelect.innerHTML = "";
+      machineSelect.innerHTML = "";
+      const start = startInput.value;
+      const end = endInput.value;
+      if (!start || !end) return;
 
-      [...new Set(telemetry.map(e => e.customer))].forEach(c => {
-        const o = new Option(c, c);
-        customerSelect.append(o);
+      const startTs = new Date(start).getTime();
+      const endTs = new Date(end).getTime();
+
+      try {
+        const data = await fetchTelemetryData(startTs, endTs);
+        const customers = data.Customer || [];
+        const machines = data.Machine || [];
+        const tokens = data.Machine_Token || [];
+
+        telemetryData = customers.map((c, i) => ({
+          customer: c.value,
+          machine: machines[i]?.value || "",
+          token: tokens[i]?.value || "",
+          ts: c.ts
+        }));
+
+        const uniqueCustomers = [...new Set(telemetryData.map(d => d.customer))];
+        uniqueCustomers.forEach(c => {
+          const option = document.createElement("option");
+          option.value = c;
+          option.textContent = c;
+          customerSelect.appendChild(option);
+        });
+      } catch (err) {
+        console.error(err);
+        errorMsg.textContent = "Failed to fetch customer data.";
+      }
+    }
+
+    function updateMachineDropdown() {
+      machineSelect.innerHTML = "";
+      const selectedCustomer = customerSelect.value;
+      const filtered = telemetryData.filter(d => d.customer === selectedCustomer);
+      const uniqueMachines = [...new Set(filtered.map(d => d.machine))];
+      uniqueMachines.forEach(m => {
+        const option = document.createElement("option");
+        option.value = m;
+        option.textContent = m;
+        machineSelect.appendChild(option);
       });
     }
 
-    customerSelect.onchange = () => {
-      const cust = customerSelect.value;
-      machineSelect.innerHTML = '<option value="">–Machine–</option>';
-      machines = telemetry.filter(e => e.customer === cust);
-      [...new Set(machines.map(e => e.machine))].forEach(m => {
-        const o = new Option(m, m);
-        machineSelect.append(o);
-      });
-    };
+    async function fetchAlarms() {
+      tableBody.innerHTML = "<tr><td colspan='4'>Loading...</td></tr>";
+      errorMsg.textContent = "";
 
-    document.getElementById('generateBtn').onclick = async () => {
-      clearAlarms();
-      await fetchTelemetry(); // ensure we have latest telemetry
-      const selected = machines.find(e => e.machine === machineSelect.value);
+      const selectedCustomer = customerSelect.value;
+      const selectedMachine = machineSelect.value;
+      const startTs = new Date(startInput.value).getTime();
+      const endTs = new Date(endInput.value).getTime();
 
-      if (!selected?.token) {
-        alert('No machine selected or no token found.');
+      const selectedData = telemetryData.find(
+        d => d.customer === selectedCustomer && d.machine === selectedMachine
+      );
+      const deviceToken = selectedData?.token;
+
+      if (!deviceToken) {
+        tableBody.innerHTML = "<tr><td colspan='4'>No token found</td></tr>";
         return;
       }
 
-      // Replace with your real alarm fetch API
-      const alarmsUrl = `${baseUrl}/plugins/telemetry/DEVICE/${selected.token}/values/timeseries?keys=Alarm_Code,Alarm_Description,Alarm_Level&startTs=${new Date(startDate.value).getTime()}&endTs=${new Date(endDate.value).getTime()}&limit=1000&agg=NONE`;
-      
-      const r = await fetch(alarmsUrl, { headers: { 'X-Authorization': `Bearer ${jwt}` }});
-      const j = await r.json();
+      try {
+        const res = await fetch(`${baseUrl}/plugins/telemetry/DEVICE/${deviceToken}/values/timeseries?keys=Alarm_Code,Alarm_Description,Alarm_Level&startTs=${startTs}&endTs=${endTs}&limit=1000&agg=NONE`, {
+          headers: { "X-Authorization": `Bearer ${jwt}` }
+        });
 
-      const codes = j.Alarm_Code || [];
-      const descs = j.Alarm_Description || [];
-      const levels = j.Alarm_Level || [];
+        const json = await res.json();
+        const alarms = json.Alarm_Code?.map((item, i) => ({
+          code: item.value,
+          description: json.Alarm_Description?.[i]?.value || "-",
+          level: json.Alarm_Level?.[i]?.value || "-",
+          ts: item.ts
+        })) || [];
 
-      for (let i = 0; i < codes.length; i++) {
-        const lvl = levels[i]?.value;
-        const div = document.createElement('div');
-        div.className = 'alarm-card';
-        div.innerHTML = `
-          <div class="alarm-icon">B</div>
-          <div class="alarm-details">
-            <div><strong>${codes[i]?.value}</strong> ‑ ${descs[i]?.value}</div>
-            <div class="alarm-time">${new Date(levels[i]?.ts).toLocaleString('en-IN', {timeZone:'Asia/Kolkata'})}</div>
-          </div>`;
-        const container = document.getElementById(`lvl${lvl}List`);
-        container.append(div);
+        if (alarms.length === 0) {
+          tableBody.innerHTML = "<tr><td colspan='4'>No alarms found</td></tr>";
+          return;
+        }
+
+        tableBody.innerHTML = "";
+        alarms.forEach((a, i) => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td>${i + 1}</td>
+            <td>${a.code}</td>
+            <td>${a.description}</td>
+            <td>${a.level}</td>
+          `;
+          tableBody.appendChild(row);
+        });
+
+      } catch (err) {
+        console.error("Error fetching alarms:", err);
+        tableBody.innerHTML = "<tr><td colspan='4'>Failed to fetch alarms</td></tr>";
       }
-    };
-
-    function clearAlarms() {
-      ['lvl1List','lvl2List','lvl3List'].forEach(id => document.getElementById(id).innerHTML = '');
     }
 
-    // Initialize customer filter when dates change
-    startDate.onchange = endDate.onchange = () => customerSelect.value && fetchTelemetry();
+    startInput.addEventListener("change", updateCustomerDropdown);
+    endInput.addEventListener("change", updateCustomerDropdown);
+    customerSelect.addEventListener("change", updateMachineDropdown);
   </script>
+
 </body>
 </html>
