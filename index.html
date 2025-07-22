@@ -2,20 +2,24 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Alarm Viewer</title>
+  <title>Alarms Viewer</title>
   <style>
     body {
-      font-family: 'Segoe UI', sans-serif;
-      background: #f2f2f2;
+      font-family: Arial, sans-serif;
+      background: #f3f3f3;
       padding: 2rem;
     }
 
-    .controls {
+    .filters {
       display: flex;
-      flex-wrap: wrap;
       gap: 1rem;
-      margin-bottom: 20px;
       align-items: center;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    label {
+      font-weight: bold;
     }
 
     input, select, button {
@@ -24,11 +28,11 @@
     }
 
     button {
-      background-color: orange;
-      color: white;
+      background: orange;
+      color: black;
       border: none;
-      border-radius: 4px;
       cursor: pointer;
+      font-weight: bold;
     }
 
     table {
@@ -38,28 +42,36 @@
     }
 
     th, td {
-      padding: 10px;
       border: 1px solid #ccc;
-      text-align: center;
+      padding: 0.6rem;
+      text-align: left;
     }
 
     th {
-      background-color: #ffcc00;
+      background: gold;
+    }
+
+    .error {
+      color: red;
+      margin-top: 10px;
     }
   </style>
 </head>
 <body>
 
-  <div class="controls">
+  <div class="filters">
     <label>Start:</label>
-    <input type="datetime-local" id="startDate">
+    <input type="datetime-local" id="startDate" step="1">
     <label>End:</label>
-    <input type="datetime-local" id="endDate">
+    <input type="datetime-local" id="endDate" step="1">
+
     <label>Customer:</label>
     <select id="customerSelect"></select>
+
     <label>Machine:</label>
     <select id="machineSelect"></select>
-    <button onclick="generateAlarms()">Generate</button>
+
+    <button onclick="loadAlarms()">Generate</button>
   </div>
 
   <table>
@@ -72,110 +84,135 @@
       </tr>
     </thead>
     <tbody id="alarmTableBody">
-      <tr><td colspan="4">No data</td></tr>
+      <tr><td colspan="4">No alarms found</td></tr>
     </tbody>
   </table>
 
+  <p class="error" id="errorMsg"></p>
+
   <script>
-    const masterDeviceId = "03990870-4108-11f0-9143-ed31251bb06c";
     const jwt = new URLSearchParams(window.location.search).get("token");
+    const masterDeviceId = "03990870-4108-11f0-9143-ed31251bb06c";
     const baseUrl = "https://thingsboard.cloud/api";
-    let telemetryData = [];
+    const customerSelect = document.getElementById("customerSelect");
+    const machineSelect = document.getElementById("machineSelect");
+    const tableBody = document.getElementById("alarmTableBody");
+    const errorMsg = document.getElementById("errorMsg");
 
-    async function fetchTelemetryData() {
-      const res = await fetch(`${baseUrl}/plugins/telemetry/DEVICE/${masterDeviceId}/values/timeseries?keys=Customer,Machine,Machine_Token&limit=1000`, {
-        headers: { "X-Authorization": `Bearer ${jwt}` }
-      });
-      const data = await res.json();
+    let allData = [];
 
-      const customerData = data.Customer || [];
-      const machineData = data.Machine || [];
-      const tokenData = data.Machine_Token || [];
+    async function fetchMasterTelemetry() {
+      try {
+        const res = await fetch(`${baseUrl}/plugins/telemetry/DEVICE/${masterDeviceId}/values/timeseries?keys=Customer,Machine,Machine_Token&limit=1000&agg=NONE`, {
+          headers: { "X-Authorization": `Bearer ${jwt}` }
+        });
+        const data = await res.json();
 
-      telemetryData = customerData.map((entry, i) => ({
-        ts: entry.ts,
-        customer: entry.value,
-        machine: machineData[i]?.value,
-        token: tokenData[i]?.value
-      }));
+        const customerData = data.Customer || [];
+        const machineData = data.Machine || [];
+        const tokenData = data.Machine_Token || [];
 
-      const customers = [...new Set(telemetryData.map(d => d.customer))];
-      const customerSelect = document.getElementById("customerSelect");
-      customerSelect.innerHTML = '<option value="">Select</option>';
-      customers.forEach(c => {
-        const opt = document.createElement("option");
-        opt.value = c;
-        opt.textContent = c;
-        customerSelect.appendChild(opt);
-      });
+        allData = customerData.map((entry, idx) => ({
+          ts: entry.ts,
+          customer: entry.value,
+          machine: machineData[idx]?.value || "",
+          token: tokenData[idx]?.value || ""
+        }));
+
+        const uniqueCustomers = [...new Set(allData.map(d => d.customer))];
+        customerSelect.innerHTML = "";
+        uniqueCustomers.forEach(customer => {
+          const opt = document.createElement("option");
+          opt.value = customer;
+          opt.textContent = customer;
+          customerSelect.appendChild(opt);
+        });
+
+        customerSelect.addEventListener("change", updateMachineOptions);
+        updateMachineOptions();
+      } catch (err) {
+        console.error("Telemetry fetch error:", err);
+        errorMsg.textContent = "Failed to fetch master telemetry data.";
+      }
     }
 
-    document.getElementById("customerSelect").addEventListener("change", function () {
-      const selectedCustomer = this.value;
-      const machines = telemetryData
+    function updateMachineOptions() {
+      const selectedCustomer = customerSelect.value;
+      const machines = allData
         .filter(d => d.customer === selectedCustomer)
         .map(d => d.machine);
       const uniqueMachines = [...new Set(machines)];
 
-      const machineSelect = document.getElementById("machineSelect");
-      machineSelect.innerHTML = '<option value="">Select</option>';
-      uniqueMachines.forEach(m => {
+      machineSelect.innerHTML = "";
+      uniqueMachines.forEach(machine => {
         const opt = document.createElement("option");
-        opt.value = m;
-        opt.textContent = m;
+        opt.value = machine;
+        opt.textContent = machine;
         machineSelect.appendChild(opt);
       });
-    });
+    }
 
-    async function generateAlarms() {
+    async function loadAlarms() {
       const startInput = document.getElementById("startDate").value;
       const endInput = document.getElementById("endDate").value;
-      const customer = document.getElementById("customerSelect").value;
-      const machine = document.getElementById("machineSelect").value;
+      const selectedCustomer = customerSelect.value;
+      const selectedMachine = machineSelect.value;
 
-      if (!startInput || !endInput || !customer || !machine) {
-        alert("Please select all filters");
+      errorMsg.textContent = "";
+      tableBody.innerHTML = '<tr><td colspan="4">Loading...</td></tr>';
+
+      if (!startInput || !endInput || !selectedCustomer || !selectedMachine) {
+        errorMsg.textContent = "Please select start/end time, customer, and machine.";
         return;
       }
 
       const startTs = new Date(startInput).getTime();
       const endTs = new Date(endInput).getTime();
 
-      const match = telemetryData.find(d => d.customer === customer && d.machine === machine);
-      if (!match) return alert("Device token not found!");
-
-      const token = match.token;
-
-      const res = await fetch(`${baseUrl}/plugins/telemetry/DEVICE/${token}/values/timeseries?keys=Alarm_Code,Alarm_Description,Alarm_Level&startTs=${startTs}&endTs=${endTs}&limit=1000`, {
-        headers: { "X-Authorization": `Bearer ${jwt}` }
-      });
-
-      const data = await res.json();
-      const code = data.Alarm_Code || [];
-      const desc = data.Alarm_Description || [];
-      const level = data.Alarm_Level || [];
-
-      const tbody = document.getElementById("alarmTableBody");
-      tbody.innerHTML = "";
-
-      if (!code.length) {
-        tbody.innerHTML = "<tr><td colspan='4'>No alarms found</td></tr>";
+      const device = allData.find(d => d.customer === selectedCustomer && d.machine === selectedMachine);
+      if (!device || !device.token) {
+        errorMsg.textContent = "Device token not found for selected machine.";
+        tableBody.innerHTML = '<tr><td colspan="4">No alarms found</td></tr>';
         return;
       }
 
-      code.forEach((_, i) => {
-        const row = document.createElement("tr");
-        row.innerHTML = `
-          <td>${i + 1}</td>
-          <td>${code[i]?.value || ""}</td>
-          <td>${desc[i]?.value || ""}</td>
-          <td>${level[i]?.value || ""}</td>
-        `;
-        tbody.appendChild(row);
-      });
+      try {
+        const alarmDeviceId = device.token;
+        const url = `${baseUrl}/plugins/telemetry/DEVICE/${alarmDeviceId}/values/timeseries?keys=Alarm_Code,Alarm_Description,Alarm_Level&startTs=${startTs}&endTs=${endTs}&limit=1000&agg=NONE`;
+
+        const res = await fetch(url, {
+          headers: { "X-Authorization": `Bearer ${jwt}` }
+        });
+
+        const alarmData = await res.json();
+        const codes = alarmData.Alarm_Code || [];
+        const descs = alarmData.Alarm_Description || [];
+        const levels = alarmData.Alarm_Level || [];
+
+        if (!codes.length) {
+          tableBody.innerHTML = '<tr><td colspan="4">No alarms found</td></tr>';
+          return;
+        }
+
+        tableBody.innerHTML = "";
+        codes.forEach((item, i) => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td>${i + 1}</td>
+            <td>${item.value}</td>
+            <td>${descs[i]?.value || "-"}</td>
+            <td>${levels[i]?.value || "-"}</td>
+          `;
+          tableBody.appendChild(row);
+        });
+      } catch (err) {
+        console.error("Alarm fetch error:", err);
+        errorMsg.textContent = "Error fetching alarms.";
+        tableBody.innerHTML = '<tr><td colspan="4">Error</td></tr>';
+      }
     }
 
-    fetchTelemetryData();
+    fetchMasterTelemetry();
   </script>
 </body>
 </html>
