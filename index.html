@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Customer & Machine Selector</title>
+  <title>Alarm Dashboard</title>
   <style>
     body {
       font-family: 'Segoe UI', sans-serif;
@@ -10,11 +10,6 @@
       padding: 2rem;
       margin: 0;
       color: #333;
-    }
-
-    h2 {
-      text-align: center;
-      margin-bottom: 2rem;
     }
 
     .filter-row {
@@ -35,29 +30,41 @@
       font-weight: 500;
     }
 
-    input, select {
+    input, select, button {
       padding: 0.5rem 0.8rem;
       font-size: 1rem;
       border: 1px solid #ccc;
       border-radius: 5px;
-      min-width: 180px;
+      min-width: 160px;
     }
 
-    .output {
-      margin-top: 1.5rem;
-      text-align: center;
-      font-size: 1.1rem;
-    }
-
-    .highlight {
-      color: #007bff;
+    button {
+      background: orange;
+      color: #fff;
+      cursor: pointer;
+      border: none;
       font-weight: bold;
+    }
+
+    table {
+      width: 95%;
+      margin: 2rem auto;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      border: 1px solid #ccc;
+      padding: 0.75rem;
+      text-align: center;
+    }
+
+    th {
+      background: gold;
     }
 
     .error {
       text-align: center;
       color: red;
-      margin-top: 1rem;
     }
 
     @media (max-width: 768px) {
@@ -70,52 +77,56 @@
 </head>
 <body>
 
-  <h2>Filter by Date, Customer, and Machine</h2>
-
   <div class="filter-row">
     <div>
-      <label for="startDate">Start Time</label><br>
+      <label for="startDate">Start</label><br>
       <input type="datetime-local" id="startDate" step="1">
     </div>
-
     <div>
-      <label for="endDate">End Time</label><br>
+      <label for="endDate">End</label><br>
       <input type="datetime-local" id="endDate" step="1">
     </div>
-
     <div>
-      <label for="customerSelect">Customer</label><br>
-      <select id="customerSelect">
-        <option value="">-- Select Customer --</option>
-      </select>
+      <label for="customerSelect">Customer:</label><br>
+      <select id="customerSelect"></select>
     </div>
-
     <div>
-      <label for="machineSelect">Machine</label><br>
-      <select id="machineSelect">
-        <option value="">-- Select Machine --</option>
-      </select>
+      <label for="machineSelect">Machine:</label><br>
+      <select id="machineSelect"></select>
+    </div>
+    <div>
+      <br>
+      <button onclick="fetchAlarms()">Generate</button>
     </div>
   </div>
 
-  <div class="output">
-    Machine Token: <span id="tokenDisplay" class="highlight">-</span>
-  </div>
+  <table id="alarmTable">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Alarm Code</th>
+        <th>Alarm Description</th>
+        <th>Alarm Level</th>
+      </tr>
+    </thead>
+    <tbody id="alarmTableBody">
+      <tr><td colspan="4">No alarms found</td></tr>
+    </tbody>
+  </table>
 
   <p class="error" id="errorMsg"></p>
 
   <script>
     const jwt = new URLSearchParams(window.location.search).get("token");
-    const masterDeviceId = "03990870-4108-11f0-9143-ed31251bb06c";
     const baseUrl = "https://thingsboard.cloud/api";
-
+    const masterDeviceId = "03990870-4108-11f0-9143-ed31251bb06c";
     let telemetryData = [];
 
     const startInput = document.getElementById("startDate");
     const endInput = document.getElementById("endDate");
     const customerSelect = document.getElementById("customerSelect");
     const machineSelect = document.getElementById("machineSelect");
-    const tokenDisplay = document.getElementById("tokenDisplay");
+    const tableBody = document.getElementById("alarmTableBody");
     const errorMsg = document.getElementById("errorMsg");
 
     async function fetchTelemetryData(startTs, endTs) {
@@ -129,10 +140,8 @@
 
     async function updateCustomerDropdown() {
       errorMsg.textContent = "";
-      customerSelect.innerHTML = '<option value="">-- Select Customer --</option>';
-      machineSelect.innerHTML = '<option value="">-- Select Machine --</option>';
-      tokenDisplay.textContent = "-";
-
+      customerSelect.innerHTML = "";
+      machineSelect.innerHTML = "";
       const start = startInput.value;
       const end = endInput.value;
       if (!start || !end) return;
@@ -167,8 +176,7 @@
     }
 
     function updateMachineDropdown() {
-      machineSelect.innerHTML = '<option value="">-- Select Machine --</option>';
-      tokenDisplay.textContent = "-";
+      machineSelect.innerHTML = "";
       const selectedCustomer = customerSelect.value;
       const filtered = telemetryData.filter(d => d.customer === selectedCustomer);
       const uniqueMachines = [...new Set(filtered.map(d => d.machine))];
@@ -180,17 +188,64 @@
       });
     }
 
-    function showMachineToken() {
-      const customer = customerSelect.value;
-      const machine = machineSelect.value;
-      const match = telemetryData.find(d => d.customer === customer && d.machine === machine);
-      tokenDisplay.textContent = match?.token || "Not Found";
+    async function fetchAlarms() {
+      tableBody.innerHTML = "<tr><td colspan='4'>Loading...</td></tr>";
+      errorMsg.textContent = "";
+
+      const selectedCustomer = customerSelect.value;
+      const selectedMachine = machineSelect.value;
+      const startTs = new Date(startInput.value).getTime();
+      const endTs = new Date(endInput.value).getTime();
+
+      const selectedData = telemetryData.find(
+        d => d.customer === selectedCustomer && d.machine === selectedMachine
+      );
+      const deviceToken = selectedData?.token;
+
+      if (!deviceToken) {
+        tableBody.innerHTML = "<tr><td colspan='4'>No token found</td></tr>";
+        return;
+      }
+
+      try {
+        const res = await fetch(`${baseUrl}/plugins/telemetry/DEVICE/${deviceToken}/values/timeseries?keys=Alarm_Code,Alarm_Description,Alarm_Level&startTs=${startTs}&endTs=${endTs}&limit=1000&agg=NONE`, {
+          headers: { "X-Authorization": `Bearer ${jwt}` }
+        });
+
+        const json = await res.json();
+        const alarms = json.Alarm_Code?.map((item, i) => ({
+          code: item.value,
+          description: json.Alarm_Description?.[i]?.value || "-",
+          level: json.Alarm_Level?.[i]?.value || "-",
+          ts: item.ts
+        })) || [];
+
+        if (alarms.length === 0) {
+          tableBody.innerHTML = "<tr><td colspan='4'>No alarms found</td></tr>";
+          return;
+        }
+
+        tableBody.innerHTML = "";
+        alarms.forEach((a, i) => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td>${i + 1}</td>
+            <td>${a.code}</td>
+            <td>${a.description}</td>
+            <td>${a.level}</td>
+          `;
+          tableBody.appendChild(row);
+        });
+
+      } catch (err) {
+        console.error("Error fetching alarms:", err);
+        tableBody.innerHTML = "<tr><td colspan='4'>Failed to fetch alarms</td></tr>";
+      }
     }
 
     startInput.addEventListener("change", updateCustomerDropdown);
     endInput.addEventListener("change", updateCustomerDropdown);
     customerSelect.addEventListener("change", updateMachineDropdown);
-    machineSelect.addEventListener("change", showMachineToken);
   </script>
 
 </body>
