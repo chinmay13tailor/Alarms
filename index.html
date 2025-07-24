@@ -28,7 +28,7 @@
 
     .summary-box {
       width: 95%;
-      margin: 1.5rem auto 0.5rem;
+      margin: 1.5rem auto 0.5rem auto;
       padding: 1rem 1.5rem;
       background: #ffffff;
       box-shadow: 0 4px 10px rgba(0,0,0,0.08);
@@ -77,7 +77,7 @@
 
     table {
       width: 95%;
-      margin: 1rem auto 2rem;
+      margin: 2rem auto;
       border-collapse: collapse;
       border-radius: 10px;
       overflow: hidden;
@@ -112,6 +112,12 @@
       margin-top: 1rem;
     }
 
+    .download-section {
+      width: 95%;
+      margin: 0 auto;
+      text-align: right;
+    }
+
     @media (max-width: 768px) {
       .filter-row {
         flex-direction: column;
@@ -130,6 +136,10 @@
       .summary-box {
         flex-direction: column;
         gap: 0.5rem;
+      }
+
+      .download-section {
+        text-align: center;
       }
     }
   </style>
@@ -160,14 +170,20 @@
 
   <div id="alarmSummary" class="summary-box">
     <div>Total Alarms: <span id="totalAlarms">0</span></div>
-    <div style="text-align: left;">Most Frequent Alarm: <span id="mostFrequentCode">-</span></div>
+    <div style="text-align: left;">
+      Most Frequent Alarm: <span id="mostFrequentCode">-</span>
+    </div>
+  </div>
+
+  <div class="download-section">
+    <button onclick="downloadCSV()">Download CSV</button>
   </div>
 
   <table id="alarmTable">
     <thead>
       <tr>
         <th>Sr.No.</th>
-        <th>Occurrence Time</th>
+        <th>Occurance Time</th>
         <th>Alarm Description</th>
         <th>Alarm Code</th>      
         <th>Alarm Level</th>
@@ -185,6 +201,7 @@
     const baseUrl = "https://thingsboard.cloud/api";
     const masterDeviceId = "03990870-4108-11f0-9143-ed31251bb06c";
     let telemetryData = [];
+    let currentAlarms = [];
 
     const startInput = document.getElementById("startDate");
     const endInput = document.getElementById("endDate");
@@ -295,13 +312,19 @@
           ts: item.ts
         })) || [];
 
+        currentAlarms = alarms;
+
+        if (alarms.length === 0) {
+          tableBody.innerHTML = "<tr><td colspan='5'>No alarms found</td></tr>";
+          document.getElementById("totalAlarms").textContent = "0";
+          document.getElementById("mostFrequentCode").textContent = "-";
+          return;
+        }
+
+        // Update summary
         document.getElementById("totalAlarms").textContent = alarms.length;
-
         const freqMap = {};
-        alarms.forEach(a => {
-          freqMap[a.code] = (freqMap[a.code] || 0) + 1;
-        });
-
+        alarms.forEach(a => { freqMap[a.code] = (freqMap[a.code] || 0) + 1; });
         const mostFrequent = Object.entries(freqMap).sort((a, b) => b[1] - a[1])[0];
         if (mostFrequent) {
           const { code, description } = alarms.find(a => a.code === mostFrequent[0]);
@@ -310,11 +333,7 @@
           document.getElementById("mostFrequentCode").textContent = "-";
         }
 
-        if (alarms.length === 0) {
-          tableBody.innerHTML = "<tr><td colspan='5'>No alarms found</td></tr>";
-          return;
-        }
-
+        // Render table
         tableBody.innerHTML = "";
         alarms.forEach((a, i) => {
           const row = document.createElement("tr");
@@ -332,6 +351,26 @@
         console.error("Error fetching alarms:", err);
         tableBody.innerHTML = "<tr><td colspan='5'>Failed to fetch alarms</td></tr>";
       }
+    }
+
+    function downloadCSV() {
+      const rows = [["Sr.No.", "Occurrence Time", "Alarm Description", "Alarm Code", "Alarm Level"]];
+      document.querySelectorAll("#alarmTable tbody tr").forEach((row, index) => {
+        const cells = row.querySelectorAll("td");
+        if (cells.length === 5) {
+          const rowData = Array.from(cells).map(td => td.textContent.trim());
+          rows.push(rowData);
+        }
+      });
+
+      const csvContent = rows.map(e => e.join(",")).join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "alarms.csv";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     }
 
     startInput.addEventListener("change", updateCustomerDropdown);
