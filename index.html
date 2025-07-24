@@ -12,20 +12,19 @@
       color: #333;
     }
 
-.filter-row {
-  width: 94%;
-  margin: 1rem auto;
-  display: flex;
-  justify-content: flex-start;
-  flex-wrap: wrap;
-  gap: 1rem;
-  align-items: flex-end;
-  background: white;
-  padding: 1rem 1rem;
-  border-radius: 10px;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.08);
-}
-
+    .filter-row {
+      width: 95%;
+      margin: 1rem auto;
+      display: flex;
+      justify-content: flex-start;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: flex-end;
+      background: white;
+      padding: 1rem;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+    }
 
     label {
       font-weight: 500;
@@ -55,6 +54,25 @@
 
     button:hover {
       background-color: #e68900;
+    }
+
+    .summary-box {
+      width: 95%;
+      margin: 1.5rem auto;
+      padding: 1rem 1.5rem;
+      background: #ffffff;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+      border-radius: 10px;
+      font-size: 1.05rem;
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      color: #333;
+    }
+
+    .summary-box span {
+      font-weight: bold;
+      color: #ff5722;
     }
 
     table {
@@ -108,6 +126,12 @@
         width: 100%;
         margin-top: 0.5rem;
       }
+
+      .summary-box {
+        flex-direction: column;
+        gap: 0.5rem;
+        text-align: center;
+      }
     }
   </style>
 </head>
@@ -135,13 +159,18 @@
     </div>
   </div>
 
+  <div id="alarmSummary" class="summary-box">
+    <p>Total Alarms: <span id="totalAlarms">0</span></p>
+    <p>Most Frequent Alarm Code: <span id="mostFrequentCode">-</span></p>
+  </div>
+
   <table id="alarmTable">
     <thead>
       <tr>
         <th>Sr.No.</th>
         <th>Occurance Time</th>
         <th>Alarm Description</th>
-        <th>Alarm Code</th>      
+        <th>Alarm Code</th>
         <th>Alarm Level</th>
       </tr>
     </thead>
@@ -164,6 +193,12 @@
     const machineSelect = document.getElementById("machineSelect");
     const tableBody = document.getElementById("alarmTableBody");
     const errorMsg = document.getElementById("errorMsg");
+
+    function formatTimestamp(ts) {
+      const d = new Date(ts);
+      const pad = n => n.toString().padStart(2, '0');
+      return `${pad(d.getDate())}-${pad(d.getMonth()+1)}-${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    }
 
     async function fetchTelemetryData(startTs, endTs) {
       const url = `${baseUrl}/plugins/telemetry/DEVICE/${masterDeviceId}/values/timeseries?keys=Customer,Machine,Machine_Token&startTs=${startTs}&endTs=${endTs}&limit=1000&agg=NONE`;
@@ -226,19 +261,12 @@
       });
     }
 
-    function formatTimestamp(ts) {
-      const d = new Date(ts);
-      const pad = num => num.toString().padStart(2, '0');
-      return `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-    }
-
     async function fetchAlarms() {
       tableBody.innerHTML = "<tr><td colspan='5'>Loading...</td></tr>";
       errorMsg.textContent = "";
 
       const selectedCustomer = customerSelect.value;
       const selectedMachine = machineSelect.value;
-
       const startTs = new Date(startInput.value).getTime();
       const endDate = new Date(endInput.value);
       endDate.setHours(23, 59, 59, 999);
@@ -269,8 +297,19 @@
 
         if (alarms.length === 0) {
           tableBody.innerHTML = "<tr><td colspan='5'>No alarms found</td></tr>";
+          document.getElementById("totalAlarms").textContent = "0";
+          document.getElementById("mostFrequentCode").textContent = "-";
           return;
         }
+
+        // Update summary
+        document.getElementById("totalAlarms").textContent = alarms.length;
+        const freqMap = {};
+        alarms.forEach(a => {
+          freqMap[a.code] = (freqMap[a.code] || 0) + 1;
+        });
+        const mostFrequent = Object.entries(freqMap).sort((a, b) => b[1] - a[1])[0];
+        document.getElementById("mostFrequentCode").textContent = mostFrequent ? `${mostFrequent[0]} (${mostFrequent[1]})` : "-";
 
         tableBody.innerHTML = "";
         alarms.forEach((a, i) => {
@@ -279,7 +318,7 @@
             <td>${i + 1}</td>
             <td>${formatTimestamp(a.ts)}</td>
             <td>${a.description}</td>
-            <td>${a.code}</td>  
+            <td>${a.code}</td>
             <td>${a.level}</td>
           `;
           tableBody.appendChild(row);
@@ -288,6 +327,8 @@
       } catch (err) {
         console.error("Error fetching alarms:", err);
         tableBody.innerHTML = "<tr><td colspan='5'>Failed to fetch alarms</td></tr>";
+        document.getElementById("totalAlarms").textContent = "0";
+        document.getElementById("mostFrequentCode").textContent = "-";
       }
     }
 
