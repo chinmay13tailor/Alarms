@@ -137,11 +137,11 @@
   <table id="alarmTable">
     <thead>
       <tr>
-        <th>#</th>
-        <th>Alarm Code</th>
+        <th>Sr.No.</th>
+        <th>Occurance Time</th>
         <th>Alarm Description</th>
+        <th>Alarm Code</th>      
         <th>Alarm Level</th>
-        <th>Time</th>
       </tr>
     </thead>
     <tbody id="alarmTableBody">
@@ -276,10 +276,10 @@
           const row = document.createElement("tr");
           row.innerHTML = `
             <td>${i + 1}</td>
-            <td>${a.code}</td>
-            <td>${a.description}</td>
-            <td>${a.level}</td>
             <td>${formatTimestamp(a.ts)}</td>
+            <td>${a.description}</td>
+            <td>${a.code}</td>  
+            <td>${a.level}</td>
           `;
           tableBody.appendChild(row);
         });
