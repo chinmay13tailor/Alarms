@@ -169,14 +169,16 @@
   </div>
 
 <div id="alarmSummary" class="summary-box">
-  <div style="display: flex; flex-direction: column; gap: 0.4rem;">
-    <div>Total Alarms: <span id="totalAlarms">0</span> <div>Most Frequent Alarm: <span id="mostFrequentCode">-</span></div> </div>
-    
+  <div style="flex: 1;">
+    <span>Total Alarms: <span id="totalAlarms">0</span></span>
+    &nbsp;|&nbsp;
+    <span>Most Frequent Alarm: <span id="mostFrequentCode">-</span></span>
   </div>
-  <div style="align-self: center;">
+  <div>
     <button onclick="downloadCSV()">Download CSV</button>
   </div>
 </div>
+
 
 
   <table id="alarmTable">
