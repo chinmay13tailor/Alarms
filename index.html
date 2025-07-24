@@ -141,10 +141,11 @@
         <th>Alarm Code</th>
         <th>Alarm Description</th>
         <th>Alarm Level</th>
+        <th>Time</th>
       </tr>
     </thead>
     <tbody id="alarmTableBody">
-      <tr><td colspan="4">No alarms found</td></tr>
+      <tr><td colspan="5">No alarms found</td></tr>
     </tbody>
   </table>
 
@@ -224,8 +225,14 @@
       });
     }
 
+    function formatTimestamp(ts) {
+      const d = new Date(ts);
+      const pad = num => num.toString().padStart(2, '0');
+      return `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    }
+
     async function fetchAlarms() {
-      tableBody.innerHTML = "<tr><td colspan='4'>Loading...</td></tr>";
+      tableBody.innerHTML = "<tr><td colspan='5'>Loading...</td></tr>";
       errorMsg.textContent = "";
 
       const selectedCustomer = customerSelect.value;
@@ -242,7 +249,7 @@
       const deviceToken = selectedData?.token;
 
       if (!deviceToken) {
-        tableBody.innerHTML = "<tr><td colspan='4'>No token found</td></tr>";
+        tableBody.innerHTML = "<tr><td colspan='5'>No token found</td></tr>";
         return;
       }
 
@@ -260,7 +267,7 @@
         })) || [];
 
         if (alarms.length === 0) {
-          tableBody.innerHTML = "<tr><td colspan='4'>No alarms found</td></tr>";
+          tableBody.innerHTML = "<tr><td colspan='5'>No alarms found</td></tr>";
           return;
         }
 
@@ -272,13 +279,14 @@
             <td>${a.code}</td>
             <td>${a.description}</td>
             <td>${a.level}</td>
+            <td>${formatTimestamp(a.ts)}</td>
           `;
           tableBody.appendChild(row);
         });
 
       } catch (err) {
         console.error("Error fetching alarms:", err);
-        tableBody.innerHTML = "<tr><td colspan='4'>Failed to fetch alarms</td></tr>";
+        tableBody.innerHTML = "<tr><td colspan='5'>Failed to fetch alarms</td></tr>";
       }
     }
 
