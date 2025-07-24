@@ -181,7 +181,9 @@
       if (!start || !end) return;
 
       const startTs = new Date(start).getTime();
-      const endTs = new Date(end).getTime();
+      const endDate = new Date(end);
+      endDate.setHours(23, 59, 59, 999);
+      const endTs = endDate.getTime();
 
       try {
         const data = await fetchTelemetryData(startTs, endTs);
@@ -228,8 +230,11 @@
 
       const selectedCustomer = customerSelect.value;
       const selectedMachine = machineSelect.value;
+
       const startTs = new Date(startInput.value).getTime();
-      const endTs = new Date(endInput.value).getTime();
+      const endDate = new Date(endInput.value);
+      endDate.setHours(23, 59, 59, 999);
+      const endTs = endDate.getTime();
 
       const selectedData = telemetryData.find(
         d => d.customer === selectedCustomer && d.machine === selectedMachine
